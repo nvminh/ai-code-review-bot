@@ -17,9 +17,20 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install Dependencies
+      - name: Install Checkstyle
         run: |
-          pip install requests
+          sudo apt update
+          sudo apt install -y checkstyle
+
+      - name: Install Semgrep
+        run: |
+          pip install semgrep
+
+      - name: Run Static Analysis
+        run: scripts/static_analysis.sh
+
+      - name: Install Dependencies for AI Review
+        run: pip install requests
 
       - name: Run AI Code Review
         env:
