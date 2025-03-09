@@ -1,9 +1,9 @@
 import requests
 import os
 
-# Replace with your GitHub repo details
 GITHUB_REPO = "nvminh/ai-code-review-bot"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 def fetch_pr_diff(pr_number):
     """Fetches the PR diff from GitHub."""
@@ -18,12 +18,28 @@ def fetch_pr_diff(pr_number):
     return "\n".join([f["patch"] for f in response.json() if "patch" in f])
 
 def ai_review(diff):
-    """Calls the AI model to review the PR diff."""
+    """Calls OpenAI GPT API to review the PR diff."""
     if not diff:
         return "No code changes detected."
-    
-    # Using a local AI model like Ollama (or replace with another LLM API)
-    return os.popen(f"ollama run codellama 'Review this code:\n{diff}'").read()
+
+    openai_url = "https://api.openai.com/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
+    data = {
+        "model": "gpt-4",
+        "messages": [{"role": "system", "content": "You are a code reviewer."},
+                     {"role": "user", "content": f"Review this code:\n{diff}"}],
+        "max_tokens": 500
+    }
+
+    masked_key = OPENAI_API_KEY[:4] + "*" * (len(OPENAI_API_KEY) - 8) + OPENAI_API_KEY[-4:]
+    print(f"❌ OpenAI Key (masked): {masked_key}")
+
+    response = requests.post(openai_url, headers=headers, json=data)
+    if response.status_code != 200:
+        print(f"❌ OpenAI API error: {response.json()}")
+        return "AI review failed."
+
+    return response.json()["choices"][0]["message"]["content"]
 
 def post_comment(pr_number, feedback):
     """Posts the AI review feedback as a comment on the PR."""
@@ -33,8 +49,6 @@ def post_comment(pr_number, feedback):
         "Accept": "application/vnd.github.v3+json"
     }
     data = {"body": f"🤖 AI Review:\n\n{feedback}"}
-    print(f"🔍 Posting data: {data}")
-    print(f"🔍 To URL: {url}")
 
     response = requests.post(url, headers=headers, json=data)
     if response.status_code == 201:
@@ -56,4 +70,5 @@ if __name__ == "__main__":
 
     print("💬 Posting AI review comment on PR...")
     post_comment(pr_number, feedback)
+
 
