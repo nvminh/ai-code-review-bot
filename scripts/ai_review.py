@@ -25,7 +25,7 @@ def ai_review(diff):
     openai_url = "https://api.openai.com/v1/chat/completions"
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
     data = {
-        "model": "gpt-4",
+        "model": "gpt-4.5-preview",
         "messages": [{"role": "system", "content": "You are a code reviewer."},
                      {"role": "user", "content": f"Review this code:\n{diff}"}],
         "max_tokens": 500
