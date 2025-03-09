@@ -33,6 +33,7 @@ def post_comment(pr_number, feedback):
         "Accept": "application/vnd.github.v3+json"
     }
     data = {"body": f"🤖 AI Review:\n\n{feedback}"}
+    print(f"🔍 Posting data: {data}")
 
     response = requests.post(url, headers=headers, json=data)
     if response.status_code == 201:
