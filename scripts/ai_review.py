@@ -33,6 +33,8 @@ def ai_review(diff):
 
 
     response = requests.post(openai_url, headers=headers, json=data)
+
+    print(f"Post to OpenAI: {data}")
     if response.status_code != 200:
         print(f"❌ OpenAI API error: {response.json()}")
         return "AI review failed."
