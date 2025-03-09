@@ -34,6 +34,7 @@ def post_comment(pr_number, feedback):
     }
     data = {"body": f"🤖 AI Review:\n\n{feedback}"}
     print(f"🔍 Posting data: {data}")
+    print(f"🔍 To URL: {url}")
 
     response = requests.post(url, headers=headers, json=data)
     if response.status_code == 201:
