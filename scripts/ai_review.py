@@ -31,6 +31,9 @@ def ai_review(diff):
         "max_tokens": 500
     }
 
+    masked_key = OPENAI_API_KEY[:4] + "*" * (len(OPENAI_API_KEY) - 8) + OPENAI_API_KEY[-4:]
+    print(f"❌ OpenAI Key (masked): {masked_key}")
+
     response = requests.post(openai_url, headers=headers, json=data)
     if response.status_code != 200:
         print(f"❌ OpenAI API error: {response.json()}")
