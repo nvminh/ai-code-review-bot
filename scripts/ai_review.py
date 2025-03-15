@@ -3,7 +3,7 @@ import os
 import json
 
 # GitHub repo details
-GITHUB_REPO = "nvminh/ai-code-review-bot"
+GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = "gpt-4o"
