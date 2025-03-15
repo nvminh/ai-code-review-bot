@@ -6,7 +6,6 @@ import json
 GITHUB_REPO = "nvminh/ai-code-review-bot"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GITHUB_PAT = os.getenv("GH_PAT")
 OPENAI_MODEL = "gpt-4o"
 
 def fetch_pr_diff(pr_number):
@@ -82,7 +81,7 @@ def approve_pr(pr_number):
     """Approves the PR using GitHub API."""
     url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/reviews"
     headers = {
-        "Authorization": f"token {GITHUB_PAT}",  # ✅ Use GH_PAT instead of GITHUB_TOKEN
+        "Authorization": f"token {GITHUB_TOKEN}",  # ✅ Use GH_PAT instead of GITHUB_TOKEN
         "Accept": "application/vnd.github.v3+json"
     }
     data = {"event": "APPROVE"}
