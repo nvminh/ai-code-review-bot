@@ -3,7 +3,7 @@ import os
 import json
 
 # GitHub repo details
-GITHUB_REPO = "nvminh/ai-code-review-bot"
+GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")  # Auto-detect repo from GitHub Actions
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = "gpt-4o"
@@ -47,7 +47,7 @@ def ai_review(files):
     - "approve": true if the code is acceptable, false otherwise
     - "comments": A list of inline comments for specific lines, formatted as:
       [
-        {{"file_path": "file/name.java", "line_number": 12, "comment": "Your comment here"}}
+        {{"file_path": "file/name.java", "position": 12, "comment": "Your comment here"}}
       ]
 
     Code changes:
@@ -58,7 +58,7 @@ def ai_review(files):
         "feedback": "General feedback on the PR",
         "approve": true,
         "comments": [
-            {{"file_path": "src/main/MyClass.java", "line_number": 12, "comment": "Consider using a more efficient algorithm."}}
+            {{"file_path": "src/main/MyClass.java", "position": 12, "comment": "Consider using a more efficient algorithm."}}
         ]
     }}
     """
@@ -102,8 +102,8 @@ def post_general_comment(pr_number, feedback):
     else:
         print(f"❌ Failed to post general comment: {response.json()}")
 
-def post_inline_comment(pr_number, commit_id, file_path, line_number, comment):
-    """Posts an inline comment on a specific line of code in the PR."""
+def post_inline_comment(pr_number, commit_id, file_path, position, comment):
+    """Posts an inline comment on a specific modified line in the PR."""
     url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/comments"
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
@@ -113,13 +113,12 @@ def post_inline_comment(pr_number, commit_id, file_path, line_number, comment):
         "body": comment,
         "commit_id": commit_id,
         "path": file_path,
-        "line": line_number,
-        "side": "RIGHT"
+        "position": position,  # ✅ Use `position`, not absolute line numbers
     }
 
     response = requests.post(url, headers=headers, json=data)
     if response.status_code == 201:
-        print(f"✅ Inline comment posted on {file_path}:{line_number}")
+        print(f"✅ Inline comment posted on {file_path}:{position}")
     else:
         print(f"❌ Failed to post inline comment: {response.json()}")
 
@@ -160,7 +159,7 @@ if __name__ == "__main__":
     else:
         print("💬 Posting inline comments...")
         for comment in review["comments"]:
-            post_inline_comment(pr_number, commit_id, comment["file_path"], comment["line_number"], comment["comment"])
+            post_inline_comment(pr_number, commit_id, comment["file_path"], comment["position"], comment["comment"])
 
     if review["approve"]:
         print("✅ AI approves this PR. Sending approval...")
