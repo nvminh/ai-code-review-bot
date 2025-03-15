@@ -6,6 +6,7 @@ import json
 GITHUB_REPO = "nvminh/ai-code-review-bot"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GITHUB_PAT = os.getenv("GH_PAT")
 OPENAI_MODEL = "gpt-4o"  # Change to a model you have access to
 
 def fetch_pr_diff(pr_number):
@@ -78,20 +79,18 @@ def post_comment(pr_number, feedback):
         print(f"❌ Failed to post comment: {response.json()}")
 
 def approve_pr(pr_number):
-    """Approves the PR if the AI review is positive."""
+    """Approves the PR using GitHub API."""
     url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/reviews"
     headers = {
-        "Authorization": f"token {GITHUB_TOKEN}",
+        "Authorization": f"token {GITHUB_PAT}",  # ✅ Use GH_PAT instead of GITHUB_TOKEN
         "Accept": "application/vnd.github.v3+json"
     }
-    data = {
-        "event": "APPROVE",
-        "body": "🤖 AI Review: Code looks good! ✅"
-    }
+    data = {"event": "APPROVE"}
 
     response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 201:
-        print("✅ AI approved the PR successfully!")
+    
+    if response.status_code == 200:
+        print("✅ PR approved successfully!")
     else:
         print(f"❌ Failed to approve PR: {response.json()}")
 
