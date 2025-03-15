@@ -46,7 +46,7 @@ def ai_review(diff):
     payload = {
         "model": OPENAI_MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "response_format": "json"
+        "response_format": {"type": "json"}  # ✅ Fix: response_format must be an object, not a string
     }
 
     response = requests.post(url, headers=headers, json=payload)
@@ -54,7 +54,7 @@ def ai_review(diff):
     if response.status_code == 200:
         try:
             json_response = response.json()
-            return json.loads(json_response["choices"][0]["message"]["content"])
+            return json_response["choices"][0]["message"]["content"]
         except (KeyError, json.JSONDecodeError):
             print(f"⚠️ Unexpected AI response: {json_response}")
             return {"feedback": "AI review failed to parse response.", "approve": False}
