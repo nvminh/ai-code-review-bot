@@ -46,7 +46,7 @@ def ai_review(diff):
     payload = {
         "model": OPENAI_MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "response_format": {"type": "json_object"}  # ✅ Fix: Use 'json_object' instead of 'json'
+        "response_format": {"type": "json_object"}
     }
 
     response = requests.post(url, headers=headers, json=payload)
