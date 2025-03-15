@@ -7,7 +7,7 @@ GITHUB_REPO = "nvminh/ai-code-review-bot"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GITHUB_PAT = os.getenv("GH_PAT")
-OPENAI_MODEL = "gpt-4o"  # Change to a model you have access to
+OPENAI_MODEL = "gpt-4o"
 
 def fetch_pr_diff(pr_number):
     """Fetches the PR diff from GitHub."""
