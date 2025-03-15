@@ -3,7 +3,7 @@ import os
 import json
 
 # GitHub repo details
-GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")  # Auto-detect repo from GitHub Actions
+GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = "gpt-4o"
@@ -33,6 +33,40 @@ def fetch_latest_commit(pr_number):
         print(f"❌ Failed to fetch latest commit: {response.json()}")
         return None
 
+def get_diff_positions(pr_number):
+    """Fetches GitHub diff positions for PR files."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/files"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        print(f"❌ Error fetching PR diff positions: {response.json()}")
+        return {}
+
+    files = response.json()
+    positions = {}
+
+    for file in files:
+        filename = file["filename"]
+        if "patch" in file:
+            lines = file["patch"].split("\n")
+            line_number = None
+            position = 1  # GitHub diff position starts at 1
+
+            for line in lines:
+                if line.startswith("@@"):
+                    # Extract start line from the hunk header: @@ -old,old +new,new @@
+                    parts = line.split(" ")
+                    new_part = parts[2]  # +new,new
+                    start_line = int(new_part.split(",")[0][1:])  # Remove '+'
+                    line_number = start_line
+                elif line.startswith("+"):
+                    positions.setdefault(filename, {})[line_number] = position
+                    position += 1
+                line_number += 1
+
+    return positions
+
 def ai_review(files):
     """Calls OpenAI API to review the PR and return structured JSON feedback."""
     if not files:
@@ -47,7 +81,7 @@ def ai_review(files):
     - "approve": true if the code is acceptable, false otherwise
     - "comments": A list of inline comments for specific lines, formatted as:
       [
-        {{"file_path": "file/name.java", "position": 12, "comment": "Your comment here"}}
+        {{"file_path": "file/name.java", "line_number": 12, "comment": "Your comment here"}}
       ]
 
     Code changes:
@@ -58,7 +92,7 @@ def ai_review(files):
         "feedback": "General feedback on the PR",
         "approve": true,
         "comments": [
-            {{"file_path": "src/main/MyClass.java", "position": 12, "comment": "Consider using a more efficient algorithm."}}
+            {{"file_path": "src/main/MyClass.java", "line_number": 12, "comment": "Consider using a more efficient algorithm."}}
         ]
     }}
     """
@@ -102,8 +136,14 @@ def post_general_comment(pr_number, feedback):
     else:
         print(f"❌ Failed to post general comment: {response.json()}")
 
-def post_inline_comment(pr_number, commit_id, file_path, position, comment):
+def post_inline_comment(pr_number, commit_id, file_path, line_number, comment, diff_positions):
     """Posts an inline comment on a specific modified line in the PR."""
+    if file_path not in diff_positions or line_number not in diff_positions[file_path]:
+        print(f"⚠️ Skipping inline comment: No diff position found for {file_path}:{line_number}")
+        return
+
+    position = diff_positions[file_path][line_number]
+
     url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/comments"
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
@@ -113,12 +153,12 @@ def post_inline_comment(pr_number, commit_id, file_path, position, comment):
         "body": comment,
         "commit_id": commit_id,
         "path": file_path,
-        "position": position,  # ✅ Use `position`, not absolute line numbers
+        "position": position,  # ✅ Now using the correct GitHub diff position
     }
 
     response = requests.post(url, headers=headers, json=data)
     if response.status_code == 201:
-        print(f"✅ Inline comment posted on {file_path}:{position}")
+        print(f"✅ Inline comment posted on {file_path}:{line_number} (GitHub diff position: {position})")
     else:
         print(f"❌ Failed to post inline comment: {response.json()}")
 
@@ -146,6 +186,9 @@ if __name__ == "__main__":
 
     print(f"🔍 Fetching PR #{pr_number} files...")
     files = fetch_pr_files(pr_number)
+    
+    print("🧐 Mapping diff positions...")
+    diff_positions = get_diff_positions(pr_number)
 
     print("🤖 Running AI code review...")
     review = ai_review(files)
@@ -159,7 +202,7 @@ if __name__ == "__main__":
     else:
         print("💬 Posting inline comments...")
         for comment in review["comments"]:
-            post_inline_comment(pr_number, commit_id, comment["file_path"], comment["position"], comment["comment"])
+            post_inline_comment(pr_number, commit_id, comment["file_path"], comment["line_number"], comment["comment"], diff_positions)
 
     if review["approve"]:
         print("✅ AI approves this PR. Sending approval...")
