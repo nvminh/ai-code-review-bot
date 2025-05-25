@@ -19,7 +19,7 @@ This repository provides an AI-powered code review bot that automatically review
 To use the bot in your project, fork this repository and clone it to your local machine:
 
 ```sh
-git clone git@github.com:moneyforward/ai-code-review-bot.git
+git clone git@github.com:nvminh/ai-code-review-bot.git
 cd ai-code-review-bot
 ```
 
