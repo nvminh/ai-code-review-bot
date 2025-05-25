@@ -68,9 +68,9 @@ def get_diff_positions(pr_number):
     return positions
 
 def ai_review(files):
-    """Calls OpenAI API to review the PR and return structured JSON feedback."""
+    """Calls OpenAI API to review the PR and return structured JSON feedback with suggestions if not approved."""
     if not files:
-        return {"feedback": "No code changes detected.", "approve": False, "comments": []}
+        return {"feedback": "No code changes detected.", "approve": False, "comments": [], "suggestions": []}
 
     diffs = "\n".join([f"{f['filename']}:\n{f['patch']}" for f in files if "patch" in f])
 
@@ -83,6 +83,9 @@ def ai_review(files):
       [
         {{"file_path": "file/name.java", "line_number": 12, "comment": "Your comment here"}}
       ]
+    - "suggestions": A list of specific improvements needed for approval
+
+    If the PR is not approved, clearly explain what changes the developer should make to get it approved.
 
     Code changes:
     {diffs}
@@ -93,7 +96,8 @@ def ai_review(files):
         "approve": true,
         "comments": [
             {{"file_path": "src/main/MyClass.java", "line_number": 12, "comment": "Consider using a more efficient algorithm."}}
-        ]
+        ],
+        "suggestions": ["Refactor function X to improve readability.", "Add unit tests for feature Y."]
     }}
     """
 
@@ -116,13 +120,19 @@ def ai_review(files):
             return json.loads(json_response["choices"][0]["message"]["content"])
         except (KeyError, json.JSONDecodeError):
             print(f"⚠️ Unexpected AI response: {json_response}")
-            return {"feedback": "AI review failed to parse response.", "approve": False, "comments": []}
+            return {"feedback": "AI review failed to parse response.", "approve": False, "comments": [], "suggestions": []}
     else:
         print(f"❌ OpenAI API error: {response.json()}")
-        return {"feedback": "AI review failed due to API error.", "approve": False, "comments": []}
+        return {"feedback": "AI review failed due to API error.", "approve": False, "comments": [], "suggestions": []}
 
-def post_general_comment(pr_number, feedback):
-    """Posts the AI review summary as a general comment on the PR."""
+def post_general_comment(pr_number, feedback, approve, suggestions):
+    """Posts the AI review summary and suggestions as a general comment on the PR."""
+    if not approve:
+        feedback += "\n\n🚨 AI did not approve this PR. Please review the comments and make necessary changes."
+        if suggestions:
+            feedback += "\n\n💡 **How to get this PR approved:**\n"
+            feedback += "\n".join([f"- {s}" for s in suggestions])
+
     url = f"https://api.github.com/repos/{GITHUB_REPO}/issues/{pr_number}/comments"
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
@@ -172,7 +182,7 @@ def approve_pr(pr_number):
     data = {"event": "APPROVE"}
 
     response = requests.post(url, headers=headers, json=data)
-    
+
     if response.status_code == 200:
         print("✅ PR approved successfully!")
     else:
@@ -186,7 +196,7 @@ if __name__ == "__main__":
 
     print(f"🔍 Fetching PR #{pr_number} files...")
     files = fetch_pr_files(pr_number)
-    
+
     print("🧐 Mapping diff positions...")
     diff_positions = get_diff_positions(pr_number)
 
@@ -194,7 +204,7 @@ if __name__ == "__main__":
     review = ai_review(files)
 
     print("💬 Posting AI review summary on PR...")
-    post_general_comment(pr_number, review["feedback"])
+    post_general_comment(pr_number, review["feedback"], review["approve"], review.get("suggestions", []))
 
     commit_id = fetch_latest_commit(pr_number)
     if not commit_id:
