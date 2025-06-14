@@ -133,6 +133,9 @@ def ai_review(files, pr_details, pr_comments):  # ✨ UPDATED
         "response_format": {"type": "json_object"}
     }
 
+    print(f"Send to OpenAI:")
+    print(f"{payload}")
+
     response = requests.post(url, headers=headers, json=payload)
 
     if response.status_code == 200:
