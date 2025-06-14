@@ -146,6 +146,70 @@ def ai_review(files, pr_details, pr_comments):  # ✨ UPDATED
         print(f"❌ OpenAI API error: {response.json()}")
         return {"feedback": "AI review failed due to API error.", "approve": False, "comments": [], "suggestions": []}
 
+def post_general_comment(pr_number, feedback, approve, suggestions):
+    """Posts the AI review summary and suggestions as a general comment on the PR."""
+    if not approve:
+        feedback += "\n\n🚨 AI did not approve this PR. Please review the comments and make necessary changes."
+        if suggestions:
+            feedback += "\n\n💡 **How to get this PR approved:**\n"
+            feedback += "\n".join([f"- {s}" for s in suggestions])
+
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/issues/{pr_number}/comments"
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    data = {"body": f"🤖 AI Review:\n\n{feedback}"}
+
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 201:
+        print("✅ AI review comment posted successfully!")
+    else:
+        print(f"❌ Failed to post general comment: {response.json()}")
+
+def post_inline_comment(pr_number, commit_id, file_path, line_number, comment, diff_positions):
+    """Posts an inline comment on a specific modified line in the PR."""
+    if file_path not in diff_positions or line_number not in diff_positions[file_path]:
+        print(f"⚠️ Skipping inline comment: No diff position found for {file_path}:{line_number}")
+        return
+
+    position = diff_positions[file_path][line_number]
+
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/comments"
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    data = {
+        "body": comment,
+        "commit_id": commit_id,
+        "path": file_path,
+        "position": position,  # ✅ Now using the correct GitHub diff position
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 201:
+        print(f"✅ Inline comment posted on {file_path}:{line_number} (GitHub diff position: {position})")
+    else:
+        print(f"❌ Failed to post inline comment: {response.json()}")
+
+def approve_pr(pr_number):
+    """Approves the PR using GitHub API."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/reviews"
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    data = {"event": "APPROVE"}
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        print("✅ PR approved successfully!")
+    else:
+        print(f"❌ Failed to approve PR: {response.json()}")
+
+
 if __name__ == "__main__":
     pr_number = os.getenv("PR_NUMBER")
     if not pr_number:
