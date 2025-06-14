@@ -1,4 +1,4 @@
-package org.example
+package hello
 
 fun main() {
     val name = "Kotlin"
