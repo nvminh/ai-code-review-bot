@@ -8,15 +8,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = "gpt-4.1"
 
-def fetch_pr_details(pr_number):  # ✨ NEW
-    """Fetches PR title and description."""
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        print(f"❌ Error fetching PR details: {response.json()}")
-        return {}
-    return response.json()
+AI_COMMENT_TAG = "🤖 AI Review:"
 
 def fetch_pr_files(pr_number):
     """Fetches PR files with diffs from GitHub."""
@@ -76,35 +68,32 @@ def get_diff_positions(pr_number):
 
     return positions
 
-def ai_review(files, pr_details):  # ✨ UPDATED
-    """Calls OpenAI API to review the PR and return structured JSON feedback with suggestions if not approved."""
+def ai_review(files, pr_description):
+    """Calls OpenAI API to review the PR."""
     if not files:
         return {"feedback": "No code changes detected.", "approve": False, "comments": [], "suggestions": []}
 
     diffs = "\n".join([f"{f['filename']}:\n{f['patch']}" for f in files if "patch" in f])
-    pr_title = pr_details.get("title", "")
-    pr_body = pr_details.get("body", "")
 
     prompt = f"""
-    You are an AI code reviewer. The following is a Pull Request:
+    You are an AI code reviewer. Analyze the PR description and code changes below. Return a JSON with:
+    - "feedback": summary of the review
+    - "approve": true/false
+    - "comments": inline comments
+    - "suggestions": steps needed for approval
 
-    Title:
-    {pr_title}
-
-    Description:
-    {pr_body}
+    PR description:
+    {pr_description}
 
     Code changes:
     {diffs}
 
-    Please analyze and return:
+    Return JSON:
     {{
-        "feedback": "General feedback on the PR",
-        "approve": true/false,
-        "comments": [
-            {{"file_path": "src/main/MyClass.java", "line_number": 12, "comment": "Consider using a more efficient algorithm."}}
-        ],
-        "suggestions": ["Refactor function X to improve readability.", "Add unit tests for feature Y."]
+        "feedback": "...",
+        "approve": true,
+        "comments": [...],
+        "suggestions": [...]
     }}
     """
 
@@ -132,8 +121,68 @@ def ai_review(files, pr_details):  # ✨ UPDATED
         print(f"❌ OpenAI API error: {response.json()}")
         return {"feedback": "AI review failed due to API error.", "approve": False, "comments": [], "suggestions": []}
 
+def fetch_existing_comments(pr_number):
+    """Fetches all PR review comments."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/issues/{pr_number}/comments"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"❌ Failed to fetch existing comments: {response.json()}")
+        return []
+
+def delete_comment(comment_id):
+    """Deletes a comment by ID."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/issues/comments/{comment_id}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+    response = requests.delete(url, headers=headers)
+    if response.status_code == 204:
+        print(f"✅ Deleted old AI comment ID: {comment_id}")
+    else:
+        print(f"❌ Failed to delete comment ID {comment_id}: {response.json()}")
+
+def fetch_inline_comments(pr_number):
+    """Fetches all review comments (inline) for the PR."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/comments"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"❌ Failed to fetch inline review comments: {response.json()}")
+        return []
+
+def delete_inline_comment(comment_id):
+    """Deletes an inline review comment by ID."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/comments/{comment_id}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+    response = requests.delete(url, headers=headers)
+    if response.status_code == 204:
+        print(f"✅ Deleted old AI inline comment ID: {comment_id}")
+    else:
+        print(f"❌ Failed to delete inline comment ID {comment_id}: {response.json()}")
+
+def cleanup_old_ai_comments(pr_number):
+    """Deletes old AI comments (both issue-level and inline)."""
+    # Issue-level comments
+    issue_comments = fetch_existing_comments(pr_number)
+    for comment in issue_comments:
+        if comment["body"].startswith(AI_COMMENT_TAG):
+            delete_comment(comment["id"])
+
+    # Inline review comments
+    inline_comments = fetch_inline_comments(pr_number)
+    for comment in inline_comments:
+        if comment["body"].startswith(AI_COMMENT_TAG):
+            delete_inline_comment(comment["id"])
+
 def post_general_comment(pr_number, feedback, approve, suggestions):
-    """Posts the AI review summary and suggestions as a general comment on the PR."""
+    """Posts the AI review summary and suggestions as a general comment."""
     if not approve:
         feedback += "\n\n🚨 AI did not approve this PR. Please review the comments and make necessary changes."
         if suggestions:
@@ -145,7 +194,7 @@ def post_general_comment(pr_number, feedback, approve, suggestions):
         "Authorization": f"token {GITHUB_TOKEN}",
         "Accept": "application/vnd.github.v3+json"
     }
-    data = {"body": f"🤖 AI Review:\n\n{feedback}"}
+    data = {"body": f"{AI_COMMENT_TAG}\n\n{feedback}"}
 
     response = requests.post(url, headers=headers, json=data)
     if response.status_code == 201:
@@ -170,12 +219,12 @@ def post_inline_comment(pr_number, commit_id, file_path, line_number, comment, d
         "body": comment,
         "commit_id": commit_id,
         "path": file_path,
-        "position": position,  # ✅ Now using the correct GitHub diff position
+        "position": position
     }
 
     response = requests.post(url, headers=headers, json=data)
     if response.status_code == 201:
-        print(f"✅ Inline comment posted on {file_path}:{line_number} (GitHub diff position: {position})")
+        print(f"✅ Inline comment posted on {file_path}:{line_number}")
     else:
         print(f"❌ Failed to post inline comment: {response.json()}")
 
@@ -195,24 +244,29 @@ def approve_pr(pr_number):
     else:
         print(f"❌ Failed to approve PR: {response.json()}")
 
-
 if __name__ == "__main__":
     pr_number = os.getenv("PR_NUMBER")
     if not pr_number:
         print("❌ PR number is required. Exiting...")
         exit(1)
 
-    print(f"🔍 Fetching PR #{pr_number} details...")
-    pr_details = fetch_pr_details(pr_number)
-
-    print("🔍 Fetching PR files...")
+    print(f"🔍 Fetching PR #{pr_number} files...")
     files = fetch_pr_files(pr_number)
+
+    print("🧹 Cleaning up old AI comments...")
+    cleanup_old_ai_comments(pr_number)
 
     print("🧐 Mapping diff positions...")
     diff_positions = get_diff_positions(pr_number)
 
+    print("📄 Fetching PR description...")
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    response = requests.get(url, headers=headers)
+    pr_description = response.json().get("body", "")
+
     print("🤖 Running AI code review...")
-    review = ai_review(files, pr_details)
+    review = ai_review(files, pr_description)
 
     print("💬 Posting AI review summary on PR...")
     post_general_comment(pr_number, review["feedback"], review["approve"], review.get("suggestions", []))
