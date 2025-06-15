@@ -216,7 +216,7 @@ def post_inline_comment(pr_number, commit_id, file_path, line_number, comment, d
         "Accept": "application/vnd.github.v3+json"
     }
     data = {
-        "body": comment,
+        "body": f"{AI_COMMENT_TAG} {comment}",
         "commit_id": commit_id,
         "path": file_path,
         "position": position
