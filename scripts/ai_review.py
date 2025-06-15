@@ -7,8 +7,8 @@ GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # OPENAI_MODEL = "gpt-4.1"
-OPENAI_MODEL = "gpt-4.1-mini"
-# OPENAI_MODEL = "gpt-4.1-nano"
+# OPENAI_MODEL = "gpt-4.1-mini"
+OPENAI_MODEL = "gpt-4.1-nano"
 
 AI_COMMENT_TAG = "🤖 AI Review:"
 
