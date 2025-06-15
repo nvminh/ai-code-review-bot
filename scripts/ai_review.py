@@ -8,7 +8,8 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # OPENAI_MODEL = "gpt-4.1"
 # OPENAI_MODEL = "gpt-4.1-mini"
-OPENAI_MODEL = "gpt-4.1-nano"
+# OPENAI_MODEL = "gpt-4.1-nano"
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
 
 AI_COMMENT_TAG = "🤖 AI Review:"
 
@@ -26,6 +27,28 @@ MODEL_PRICING = {
         "output_per_million": 0.40
     }
 }
+
+def extract_model_from_pr_description(pr_number):
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    response = requests.get(url, headers=headers)
+
+    if response.status_code != 200:
+        print(f"❌ Failed to fetch PR description: {response.json()}")
+        return None
+
+    pr_body = response.json().get("body", "")
+    # Look for something like: AI_MODEL: gpt-4.1-mini
+    import re
+    match = re.search(r"AI_MODEL:\s*(gpt-4\.1(?:-mini|-nano)?)", pr_body, re.IGNORECASE)
+    if match:
+        model = match.group(1).lower()
+        if model in MODEL_PRICING:
+            print(f"🔍 PR requested AI model: {model}")
+            return model
+        else:
+            print(f"⚠️ PR requested unknown model: {model}")
+    return None
 
 def estimate_cost(model_name, prompt_tokens, completion_tokens):
     pricing = MODEL_PRICING.get(model_name)
@@ -95,7 +118,7 @@ def get_diff_positions(pr_number):
 
     return positions
 
-def ai_review(files, pr_description):
+def ai_review(files, pr_description, model):
     """Calls OpenAI API to review the PR."""
     if not files:
         return {"feedback": "No code changes detected.", "approve": False, "comments": [], "suggestions": []}
@@ -134,7 +157,7 @@ def ai_review(files, pr_description):
         "Content-Type": "application/json"
     }
     payload = {
-        "model": OPENAI_MODEL,
+        "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "response_format": {"type": "json_object"}
     }
@@ -148,7 +171,7 @@ def ai_review(files, pr_description):
             prompt_tokens = usage.get("prompt_tokens", 0)
             completion_tokens = usage.get("completion_tokens", 0)
 
-            cost = estimate_cost(OPENAI_MODEL, prompt_tokens, completion_tokens)
+            cost = estimate_cost(model, prompt_tokens, completion_tokens)
 
             print(f"💡 OpenAI API usage: prompt {prompt_tokens}, completion {completion_tokens}, cost ≈ ${cost:.6f} USD")
 
@@ -232,7 +255,7 @@ def post_general_comment(pr_number, feedback, approve, suggestions, usage, cost)
             feedback += "\n\n💡 **How to get this PR approved:**\n"
             feedback += "\n".join([f"- {s}" for s in suggestions])
 
-    feedback += f"\n\n📊 **AI review usage:** Prompt tokens: {usage.get('prompt_tokens', 0)}, Completion tokens: {usage.get('completion_tokens', 0)}, Estimated cost: ${cost:.6f} USD (model: {OPENAI_MODEL})"
+    feedback += f"\n\n📊 **AI review usage:** Prompt tokens: {usage.get('prompt_tokens', 0)}, Completion tokens: {usage.get('completion_tokens', 0)}, Estimated cost: ${cost:.6f} USD (model: {model})"
 
     url = f"https://api.github.com/repos/{GITHUB_REPO}/issues/{pr_number}/comments"
     headers = {
@@ -310,8 +333,10 @@ if __name__ == "__main__":
     response = requests.get(url, headers=headers)
     pr_description = response.json().get("body", "")
 
+    model = extract_model_from_pr_description(pr_description) or OPENAI_MODEL
+
     print("🤖 Running AI code review...")
-    review = ai_review(files, pr_description)
+    review = ai_review(files, pr_description, model)
 
     print("💬 Posting AI review summary on PR...")
     post_general_comment(pr_number, review["feedback"], review["approve"], review.get("suggestions", []), review["usage"], review["cost"])
