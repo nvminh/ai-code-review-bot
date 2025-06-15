@@ -18,16 +18,6 @@ def fetch_pr_details(pr_number):  # ✨ NEW
         return {}
     return response.json()
 
-def fetch_pr_comments(pr_number):  # ✨ NEW
-    """Fetches PR-level comments."""
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/issues/{pr_number}/comments"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        print(f"❌ Error fetching PR comments: {response.json()}")
-        return []
-    return [c["body"] for c in response.json()]
-
 def fetch_pr_files(pr_number):
     """Fetches PR files with diffs from GitHub."""
     url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/files"
@@ -86,7 +76,7 @@ def get_diff_positions(pr_number):
 
     return positions
 
-def ai_review(files, pr_details, pr_comments):  # ✨ UPDATED
+def ai_review(files, pr_details):  # ✨ UPDATED
     """Calls OpenAI API to review the PR and return structured JSON feedback with suggestions if not approved."""
     if not files:
         return {"feedback": "No code changes detected.", "approve": False, "comments": [], "suggestions": []}
@@ -94,7 +84,6 @@ def ai_review(files, pr_details, pr_comments):  # ✨ UPDATED
     diffs = "\n".join([f"{f['filename']}:\n{f['patch']}" for f in files if "patch" in f])
     pr_title = pr_details.get("title", "")
     pr_body = pr_details.get("body", "")
-    comments_text = "\n".join(pr_comments)
 
     prompt = f"""
     You are an AI code reviewer. The following is a Pull Request:
@@ -104,9 +93,6 @@ def ai_review(files, pr_details, pr_comments):  # ✨ UPDATED
 
     Description:
     {pr_body}
-
-    Reviewer comments so far:
-    {comments_text}
 
     Code changes:
     {diffs}
@@ -221,7 +207,6 @@ if __name__ == "__main__":
 
     print(f"🔍 Fetching PR #{pr_number} details...")
     pr_details = fetch_pr_details(pr_number)
-    pr_comments = fetch_pr_comments(pr_number)
 
     print("🔍 Fetching PR files...")
     files = fetch_pr_files(pr_number)
@@ -230,7 +215,7 @@ if __name__ == "__main__":
     diff_positions = get_diff_positions(pr_number)
 
     print("🤖 Running AI code review...")
-    review = ai_review(files, pr_details, pr_comments)
+    review = ai_review(files, pr_details)
 
     print("💬 Posting AI review summary on PR...")
     post_general_comment(pr_number, review["feedback"], review["approve"], review.get("suggestions", []))
