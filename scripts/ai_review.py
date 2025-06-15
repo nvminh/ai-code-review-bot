@@ -6,7 +6,7 @@ import json
 GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = "gpt-4o"
+OPENAI_MODEL = "gpt-4.1"
 
 def fetch_pr_details(pr_number):  # ✨ NEW
     """Fetches PR title and description."""
@@ -118,9 +118,6 @@ def ai_review(files, pr_details):  # ✨ UPDATED
         "messages": [{"role": "user", "content": prompt}],
         "response_format": {"type": "json_object"}
     }
-
-    print(f"Send to OpenAI:")
-    print(f"{payload}")
 
     response = requests.post(url, headers=headers, json=payload)
 
