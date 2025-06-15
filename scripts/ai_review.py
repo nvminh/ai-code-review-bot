@@ -90,10 +90,14 @@ def ai_review(files, pr_description):
 
     Return JSON:
     {{
-        "feedback": "...",
-        "approve": true,
-        "comments": [...],
-        "suggestions": [...]
+        "feedback": "General feedback on the PR",
+        "approve": true/false,
+        "comments": [
+            {{"file_path": "src/main/MyClass.java", "line_number": 12, "comment": "Consider using a more efficient algorithm."}}
+        ],
+        "suggestions": [
+            "Refactor function X to improve readability.", "Add unit tests for feature Y."
+        ]
     }}
     """
 
