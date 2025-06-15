@@ -1,6 +1,7 @@
 import requests
 import os
 import json
+import re
 
 # GitHub repo details
 GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
@@ -28,26 +29,15 @@ MODEL_PRICING = {
     }
 }
 
-def extract_model_from_pr_description(pr_number):
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    response = requests.get(url, headers=headers)
-
-    if response.status_code != 200:
-        print(f"❌ Failed to fetch PR description: {response.json()}")
-        return None
-
-    pr_body = response.json().get("body", "")
-    # Look for something like: AI_MODEL: gpt-4.1-mini
-    import re
-    match = re.search(r"AI_MODEL:\s*(gpt-4\.1(?:-mini|-nano)?)", pr_body, re.IGNORECASE)
+def extract_model_from_pr_description(description):
+    match = re.search(r"AI_MODEL:\s*(gpt-4\.1(?:-mini|-nano)?)", description, re.IGNORECASE)
     if match:
         model = match.group(1).lower()
         if model in MODEL_PRICING:
             print(f"🔍 PR requested AI model: {model}")
             return model
         else:
-            print(f"⚠️ PR requested unknown model: {model}")
+            print(f"⚠️ Unknown model requested: {model}")
     return None
 
 def estimate_cost(model_name, prompt_tokens, completion_tokens):
